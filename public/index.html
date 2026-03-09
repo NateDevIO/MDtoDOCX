@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MD to DOCX Converter</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f7fa;
+      color: #1a1a2e;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 480px;
+      text-align: center;
+    }
+
+    h1 { font-size: 1.5rem; margin-bottom: .35rem; }
+    .subtitle { color: #666; font-size: .9rem; margin-bottom: 1.5rem; }
+
+    .drop-zone {
+      border: 2px dashed #cbd5e1;
+      border-radius: 10px;
+      padding: 2.5rem 1.5rem;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #3b82f6;
+      background: #eff6ff;
+    }
+    .drop-zone input {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+    }
+    .drop-zone .icon { font-size: 2rem; margin-bottom: .5rem; }
+    .drop-zone p { color: #64748b; font-size: .9rem; }
+    .drop-zone .filename {
+      margin-top: .5rem;
+      font-weight: 600;
+      color: #1a1a2e;
+      word-break: break-all;
+    }
+
+    .btn {
+      display: inline-block;
+      margin-top: 1.25rem;
+      padding: .7rem 2rem;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: .95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .btn:hover { background: #2563eb; }
+    .btn:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 1rem;
+      font-size: .85rem;
+      min-height: 1.25rem;
+    }
+    .status.error { color: #dc2626; }
+    .status.ok { color: #16a34a; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid #94a3b8;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+      margin-right: .4rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Markdown to Word</h1>
+    <p class="subtitle">Upload a <strong>.md</strong> file and get a <strong>.docx</strong> back</p>
+
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".md,.markdown,.txt">
+      <div class="icon">&#128196;</div>
+      <p>Drop a Markdown file here or click to browse</p>
+      <div class="filename" id="fileName"></div>
+    </div>
+
+    <button class="btn" id="convertBtn" disabled>Convert</button>
+
+    <div class="status" id="status"></div>
+  </div>
+
+<script>
+  const dropZone  = document.getElementById("dropZone");
+  const fileInput = document.getElementById("fileInput");
+  const fileName  = document.getElementById("fileName");
+  const convertBtn = document.getElementById("convertBtn");
+  const status    = document.getElementById("status");
+
+  let selectedFile = null;
+
+  /* ---- drag & drop ---- */
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("drag-over");
+    const file = e.dataTransfer.files[0];
+    if (file) setFile(file);
+  });
+
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files[0]) setFile(fileInput.files[0]);
+  });
+
+  function setFile(file) {
+    selectedFile = file;
+    fileName.textContent = file.name;
+    convertBtn.disabled = false;
+    status.textContent = "";
+    status.className = "status";
+  }
+
+  /* ---- convert ---- */
+  convertBtn.addEventListener("click", async () => {
+    if (!selectedFile) return;
+
+    convertBtn.disabled = true;
+    status.className = "status";
+    status.innerHTML = '<span class="spinner"></span>Converting\u2026';
+
+    try {
+      const text = await selectedFile.text();
+
+      const res = await fetch("/api/convert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: selectedFile.name, content: text }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Conversion failed" }));
+        throw new Error(err.error || `Server error ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const docxName = selectedFile.name.replace(/\.[^.]+$/, "") + ".docx";
+
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = docxName;
+      a.click();
+      URL.revokeObjectURL(a.href);
+
+      status.className = "status ok";
+      status.textContent = `Downloaded ${docxName}`;
+    } catch (e) {
+      status.className = "status error";
+      status.textContent = e.message;
+    } finally {
+      convertBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
