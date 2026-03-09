@@ -1,13 +1,21 @@
 # MD to DOCX Converter
 
-A simple Python app that converts Markdown (`.md`) files to Word (`.docx`) format.
+A simple Markdown to Word (.docx) converter — available as a desktop app, CLI tool, or hosted web app.
 
-## Requirements
+**Live demo:** [mdtodocx.vercel.app](https://mdtodocx.vercel.app)
+
+## Web App
+
+Upload a `.md` file in the browser and download the converted `.docx`. Hosted on Vercel with a Python serverless backend.
+
+## Desktop / CLI
+
+### Requirements
 
 - Python 3
-- Install dependencies: `pip install python-docx markdown htmldocx`
+- `pip install python-docx markdown htmldocx`
 
-## Usage
+### Usage
 
 **GUI mode** — run without arguments to open a file picker:
 
@@ -15,14 +23,14 @@ A simple Python app that converts Markdown (`.md`) files to Word (`.docx`) forma
 python md2docx.py
 ```
 
-**Command-line mode** — pass files or folders as arguments:
+**CLI mode** — pass files or folders as arguments:
 
 ```
 python md2docx.py myfile.md
 python md2docx.py ./docs/
 ```
 
-The `.docx` files are saved alongside the originals.
+Output `.docx` files are saved alongside the originals.
 
 ## Supported Formatting
 
