@@ -3,18 +3,19 @@
 from http.server import BaseHTTPRequestHandler
 import json
 import io
-
-import markdown
-from docx import Document
-from docx.shared import Pt
-from htmldocx import HtmlToDocx
+import traceback
 
 
 def convert(md_text):
     """Convert markdown text to docx bytes."""
+    import markdown
+    from docx import Document
+    from docx.shared import Pt
+    from htmldocx import HtmlToDocx
+
     html = markdown.markdown(
         md_text,
-        extensions=["tables", "fenced_code", "codehilite", "toc", "sane_lists"],
+        extensions=["tables", "fenced_code", "toc", "sane_lists"],
     )
 
     doc = Document()
@@ -31,6 +32,27 @@ def convert(md_text):
 
 
 class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        """Health check — also tests that imports work."""
+        try:
+            import markdown
+            from docx import Document
+            from htmldocx import HtmlToDocx
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok"}).encode())
+        except Exception as e:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "error",
+                "error": str(e),
+                "trace": traceback.format_exc(),
+            }).encode())
+
     def do_POST(self):
         try:
             length = int(self.headers.get("Content-Length", 0))
@@ -40,10 +62,7 @@ class handler(BaseHTTPRequestHandler):
             filename = body.get("filename", "document.md")
 
             if not md_text.strip():
-                self.send_response(400)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "Empty markdown content"}).encode())
+                self._json_error(400, "Empty markdown content")
                 return
 
             docx_bytes = convert(md_text)
@@ -60,10 +79,16 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(docx_bytes)
 
         except Exception as e:
-            self.send_response(500)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": str(e)}).encode())
+            self._json_error(500, str(e), traceback.format_exc())
+
+    def _json_error(self, code, message, trace=None):
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        payload = {"error": message}
+        if trace:
+            payload["trace"] = trace
+        self.wfile.write(json.dumps(payload).encode())
 
     def log_message(self, format, *args):
-        pass  # suppress default stderr logging
+        pass
